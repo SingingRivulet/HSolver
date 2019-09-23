@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>频谱</title>
+<title>哼唱识别</title>
 <link rel="stylesheet" type="text/css" href="css/style.css">
 </head>
 <body class="keBody">
@@ -14,31 +14,78 @@
 <script>
 window.AudioContext = window.AudioContext || window.webkitAudioContext || window.mozAudioContext;
 
-var toneMap=new Array(24);
-toneMap[12]="C"
-toneMap[13]="D"
-toneMap[14]="D"
-toneMap[15]="E"
-toneMap[16]="F"
-toneMap[17]="G"
-toneMap[18]="G"
-toneMap[19]="G"
-toneMap[20]="A"
-toneMap[21]="A"
-toneMap[22]="A"
-toneMap[23]="B"
+var toneMap=new Array(100);
+toneMap[48]="C"
+toneMap[49]="C"
+toneMap[50]="C"
+toneMap[51]="C#"
+toneMap[52]="C#"
+toneMap[53]="C#"
+toneMap[54]="D"
+toneMap[55]="D"
+toneMap[56]="D"
+toneMap[57]="D#"
+toneMap[58]="D#"
+toneMap[59]="D#"
+toneMap[60]="E"
+toneMap[61]="E"
+toneMap[62]="E"
+toneMap[63]="F"
+toneMap[64]="F"
+toneMap[65]="F"
+toneMap[66]="F#"
+toneMap[67]="F#"
+toneMap[68]="F#"
+toneMap[69]="F#"
+toneMap[70]="G"
+toneMap[71]="G"
+toneMap[72]="G"
+toneMap[73]="G"
+toneMap[74]="G#"
+toneMap[75]="G#"
+toneMap[76]="G#"
+toneMap[77]="G#"
+toneMap[78]="A"
+toneMap[79]="A"
+toneMap[80]="A"
+toneMap[81]="A"
+toneMap[82]="A"
+toneMap[83]="A"
+toneMap[84]="A#"
+toneMap[85]="A#"
+toneMap[86]="A#"
+toneMap[87]="A#"
+toneMap[88]="A#"
+toneMap[89]="B"
+toneMap[90]="B"
+toneMap[91]="B"
+toneMap[92]="B"
+toneMap[93]="B"
 function getTone(v) {
-    var l = Math.floor(Math.log(v/12)/Math.log(2));
+    var l = Math.floor(Math.log(v/48)/Math.log(2));
     var t=0;
     if(l>0){
         t=Math.floor(v/(1<<l));
     }else
     if(l==0)
         t=v;
-    else {
+    else
+    if(v>0){
+        t=Math.floor(v * (1<<Math.abs(l)));
+    }else {
         return 0;
     }
-    return {"level":l+4,"tone":t,"name":toneMap[t]};
+    var tone = toneMap[t];
+    if(!tone)
+        return 0;
+    return {"level":l+4,"tone":t,"name":tone};
+}
+function lagInt4(x0,x1,x2,x3,y0,y1,y2,y3,x) {
+    var res=(((x-x1)*(x-x2)*(x-x3))/((x0-x1)*(x0-x2)*(x0-x3)))*y0;
+    res   +=(((x-x0)*(x-x2)*(x-x3))/((x1-x0)*(x1-x2)*(x1-x3)))*y1;
+    res   +=(((x-x0)*(x-x1)*(x-x3))/((x2-x0)*(x2-x1)*(x2-x3)))*y2;
+    res   +=(((x-x0)*(x-x1)*(x-x2))/((x3-x0)*(x3-x1)*(x3-x2)))*y3;
+    return res;
 }
 window.onload = function() {
     navigator.mozGetUserMedia({
@@ -80,12 +127,34 @@ window.onload = function() {
         var j=0;
         var maxEle=document.getElementById("max-posi");
         function renderFrame() {
-            var array = new Uint8Array(analyserNode.frequencyBinCount);
-            analyserNode.getByteFrequencyData(array);
+            var oarray = new Uint8Array(analyserNode.frequencyBinCount);
+            analyserNode.getByteFrequencyData(oarray);
+            var array = new Uint8Array(300);
+            
+            //将频谱放大4倍，没有的插值
+            for(var i=0;i<300;i++){
+                var ox  = i/4.0;
+                var ox1 = Math.floor(ox);
+                var ox0 = ox1-1;
+                var ox2 = ox1+1;
+                var ox3 = ox1+2;
+                var y3 = oarray[ox3];
+                var y2 = oarray[ox2];
+                var y1 = oarray[ox1];
+                var y0 = 0;
+                if(ox0>= 0)
+                    y0 = oarray[ox0];
+                array[i] = lagInt4(ox0,ox1,ox2,ox3,y0,y1,y2,y3,ox);
+            }
+            for(var i=1;i<300;i++){//滤掉突变
+                if((array[i]-array[i-1])>32)
+                   array[i]=array[i-1];
+            }
+            
             //ctx.clearRect(0, 0, cwidth, cheight);
             var maxValue=0;
             var maxPosi=0;
-            for (var i = 4; i < 300; i++) {
+            for (var i = 16; i < 300; i++) {
                 var value = array[i];
                 var fstatus = new Uint8Array(300);
                 if(value>maxValue){
@@ -94,13 +163,19 @@ window.onload = function() {
                 }
                 ctx.fillStyle = "rgba(0,0,"+value+")";
                 
-                if(i>0 && i<300 && value>array[i-1] && value>=array[i+1]){
+                if(i>0 && i<300 && value>32
+                   && value>array[i-1] && value>=array[i+1] 
+                   && value>array[i-2] && value>=array[i+2]
+                   && value>array[i-3] && value>=array[i+3]
+                   && array[i-2]>array[i-3]
+                   && array[i+2]>array[i+3]
+                ){
                     fstatus[i]    = value;
                     var low = i>>1;
                     if(fstatus[low+1]!=0 || fstatus[low]!=0 || fstatus[low-1]!=0){
                     
                     }else
-                        ctx.fillStyle = "rgba("+value+","+value+",0)";
+                        ctx.fillStyle = "rgba(0,"+value+",0)";
                 }
                 
                 ctx.fillRect(j
@@ -113,9 +188,10 @@ window.onload = function() {
             try{
                 var t = getTone(maxPosi);
                 if(t==0)
-                    maxEle.innerText="";
+                    maxEle.innerText=maxPosi;
                 else
-                    maxEle.innerText="音符："+t.name+" "+t.level;
+                    maxEle.innerText="音符："+t.name+" "+t.level+ " " + maxValue;
+                    //maxEle.innerText=maxPosi;
             }catch (e) {
                 
             }
