@@ -7,81 +7,90 @@
 </head>
 <body class="keBody">
 <div class="kePublic">
-<canvas id='canvas' width="800" height="300"></canvas>
+<canvas id='canvas' width="1000" height="600"></canvas>
 <br>
-<div id="max-posi"></div>
+<a href="javascript:rec.start()" id="rec-node">录制</a>
+<span id="max-posi"></span>
 <br>
 <script>
 window.AudioContext = window.AudioContext || window.webkitAudioContext || window.mozAudioContext;
 
-var toneMap=new Array(100);
-toneMap[48]="C"
-toneMap[49]="C"
-toneMap[50]="C"
-toneMap[51]="C#"
-toneMap[52]="C#"
-toneMap[53]="C#"
-toneMap[54]="D"
-toneMap[55]="D"
-toneMap[56]="D"
-toneMap[57]="D#"
-toneMap[58]="D#"
-toneMap[59]="D#"
-toneMap[60]="E"
-toneMap[61]="E"
-toneMap[62]="E"
-toneMap[63]="F"
-toneMap[64]="F"
-toneMap[65]="F"
-toneMap[66]="F#"
-toneMap[67]="F#"
-toneMap[68]="F#"
-toneMap[69]="F#"
-toneMap[70]="G"
-toneMap[71]="G"
-toneMap[72]="G"
-toneMap[73]="G"
-toneMap[74]="G#"
-toneMap[75]="G#"
-toneMap[76]="G#"
-toneMap[77]="G#"
-toneMap[78]="A"
-toneMap[79]="A"
-toneMap[80]="A"
-toneMap[81]="A"
-toneMap[82]="A"
-toneMap[83]="A"
-toneMap[84]="A#"
-toneMap[85]="A#"
-toneMap[86]="A#"
-toneMap[87]="A#"
-toneMap[88]="A#"
-toneMap[89]="B"
-toneMap[90]="B"
-toneMap[91]="B"
-toneMap[92]="B"
-toneMap[93]="B"
-toneMap[94]="C"
-toneMap[95]="C"
-function getTone(v) {
-    var l = Math.floor(Math.log(v/48)/Math.log(2));
-    var t=0;
-    if(l>0){
-        t=Math.floor(v/(1<<l));
-    }else
-    if(l==0)
-        t=v;
-    else
-    if(v>0){
-        t=Math.floor(v * (1<<Math.abs(l)));
-    }else {
-        return 0;
+var rec={
+    "recMode":false,
+    "last" : null,
+    "noteList" : null,
+    "noteLen"  : 0,
+    "noteMinLen" : 2,
+    "addNote"  : function(){
+        if(this.last[0])
+            this.noteList.push([this.last[0],this.noteLen]);
+    },
+    "pushNote" : function(tone,vol) {
+        if(!this.recMode)
+            return;
+        if(this.last!=null){
+            if(vol > (this.last[1]/2)){
+                try {
+                    if(this.last[0] && this.last[0][2]==tone[2]){
+                        ++this.noteLen;
+                    }else{
+                        this.addNote();
+                        this.noteLen=0;
+                        this.last = [tone,vol];
+                    }
+                }catch (e) {
+                    console.log(e);
+                }
+                
+            }
+        }else {
+            this.last = [tone,vol];
+        }
+    },
+    "start" : function(){
+        if(this.recMode){
+            this.recMode=false;
+            this.addNote();
+            console.log(this.noteList);
+            document.getElementById("rec-node").innerText="录制";
+        }else{
+            this.recMode=true;
+            this.noteList = [];
+            document.getElementById("rec-node").innerText="停止";
+        }
     }
-    var tone = toneMap[t];
-    if(!tone)
-        return 0;
-    return {"level":l+4,"tone":t,"name":tone};
-}
+};
+
+var toneTable={
+    "C4"        :null,
+    "toneBuffer":new Array(600),
+    "log2"      :Math.log(2),
+    "toneMap"   :["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"],
+    "init" : function (c) {
+        this.C4=c || 48;
+        this.buildBuffer();
+    },
+    "getToneId" : function(v){
+        return (Math.log(v/this.C4)/this.log2)*12+48;
+    },
+    "getNameById" : function(id){
+        if(id<0)
+            return null;
+        var level = Math.floor(id/12);
+        var tid   = id%12;
+        return [this.toneMap[tid],level,id];
+    },
+    "getToneName" : function(v){
+        return this.getNameById(Math.round(this.getToneId(v)));
+    },
+    "buildBuffer" : function(){
+        for (var i=0;i<600;i++) {
+            this.toneBuffer[i]=this.getToneName(i);
+        }
+    }
+};
+toneTable.init(72.5);//校准C4的音高
+
 function lagInt4(x0,x1,x2,x3,y0,y1,y2,y3,x) {
     var res=(((x-x1)*(x-x2)*(x-x3))/((x0-x1)*(x0-x2)*(x0-x3)))*y0;
     res   +=(((x-x0)*(x-x2)*(x-x3))/((x1-x0)*(x1-x2)*(x1-x3)))*y1;
@@ -94,7 +103,6 @@ window.onload = function() {
         audio: true
     },
     function(stream) {
-        console.log(stream);
         
         var audioContext = new AudioContext();
         inputPoint = audioContext.createGain();
@@ -117,11 +125,11 @@ window.onload = function() {
         //gap between meters
         capHeight = 2,
         capStyle = '#fff',
-        meterNum = 800,
+        meterNum = 1000,
         //count of the meters
         capYPositionArray = []; ////store the vertical position of hte caps for the preivous frame
         var ctx = canvas.getContext('2d'),
-        gradient = ctx.createLinearGradient(0, 0, 0, 300);
+        gradient = ctx.createLinearGradient(0, 0, 0, 600);
         gradient.addColorStop(1, '#0f0');
         gradient.addColorStop(0.5, '#ff0');
         gradient.addColorStop(0, '#f00');
@@ -131,11 +139,10 @@ window.onload = function() {
         function renderFrame() {
             var oarray = new Uint8Array(analyserNode.frequencyBinCount);
             analyserNode.getByteFrequencyData(oarray);
-            var array = new Uint8Array(300);
+            var array = new Uint8Array(600);
             
-            //将频谱放大4倍，没有的插值
-            for(var i=0;i<300;i++){
-                var ox  = i/4.0;
+            for(var i=0;i<600;i++){
+                var ox  = i/6.0;
                 var ox1 = Math.floor(ox);
                 var ox0 = ox1-1;
                 var ox2 = ox1+1;
@@ -148,7 +155,7 @@ window.onload = function() {
                     y0 = oarray[ox0];
                 array[i] = lagInt4(ox0,ox1,ox2,ox3,y0,y1,y2,y3,ox);
             }
-            for(var i=1;i<300;i++){//滤掉突变
+            for(var i=1;i<600;i++){//滤掉突变
                 if((array[i]-array[i-1])>32)
                    array[i]=array[i-1];
             }
@@ -156,22 +163,23 @@ window.onload = function() {
             //ctx.clearRect(0, 0, cwidth, cheight);
             var maxValue=0;
             var maxPosi=0;
-            for (var i = 16; i < 300; i++) {
+            for (var i = 16; i < 600; i++) {
                 var value = array[i];
-                var fstatus = new Uint8Array(300);
-                if(value>maxValue){
-                    maxValue = value;
-                    maxPosi  = i;
-                }
+                var fstatus = new Uint8Array(600);
+                
                 ctx.fillStyle = "rgba(0,0,"+value+")";
                 
-                if(i>0 && i<300 && value>32
+                if(i>0 && i<600 && value>32
                    && value>array[i-1] && value>=array[i+1] 
                    && value>array[i-2] && value>=array[i+2]
                    && value>array[i-3] && value>=array[i+3]
                    && array[i-2]>array[i-3]
                    && array[i+2]>array[i+3]
                 ){
+                    if(value>maxValue){
+                        maxValue = value;
+                        maxPosi  = i;
+                    }
                     fstatus[i]    = value;
                     var low = i>>1;
                     if(fstatus[low+1]!=0 || fstatus[low]!=0 || fstatus[low-1]!=0){
@@ -182,18 +190,19 @@ window.onload = function() {
                 
                 ctx.fillRect(j
                 /*meterWidth+gap*/
-                , 300-i, 1, 1); //the meter
+                , 600-i, 1, 1); //the meter
             }
             ++j;
-            if(j>=800)
+            if(j>=1000)
                 j=0;
             try{
-                var t = getTone(maxPosi);
-                if(t==0)
+                var t = toneTable.toneBuffer[maxPosi];
+                if(!t)
                     maxEle.innerText=maxPosi;
                 else
-                    maxEle.innerText="音符："+t.name+" "+t.level+ " " + maxValue;
+                    maxEle.innerText=maxPosi + " " + "音符："+t[0]+" "+t[1] + " " + maxValue;
                     //maxEle.innerText=maxPosi;
+                    rec.pushNote(t,maxValue);
             }catch (e) {
                 
             }
