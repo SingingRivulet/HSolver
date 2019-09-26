@@ -19,7 +19,7 @@ class noteParser{
         this.serious = ser;
         this.merged= [];
         console.log(this.serious);
-        this.toRelative();
+        this.merge();
     }
     merge(){
         var last = null;
@@ -52,7 +52,6 @@ var rec={
     "start" : function(){
         if(this.recMode){
             this.recMode=false;
-            this.addNote();
             var p = new noteParser(this.noteList);
             document.getElementById("rec-node").innerText="录制";
         }else{
@@ -172,7 +171,7 @@ window.onload = function() {
                 var value = array[i];
                 var fstatus = new Uint8Array(600);
                 
-                ctx.fillStyle = "rgba(0,0,"+value+")";
+                ctx.fillStyle = "rgba(0,0,"+value+",1)";
                 
                 if(i>0 && i<600 && value>32
                    && value>array[i-1] && value>=array[i+1] 
@@ -190,13 +189,15 @@ window.onload = function() {
                     if(fstatus[low+1]!=0 || fstatus[low]!=0 || fstatus[low-1]!=0){
                     
                     }else
-                        ctx.fillStyle = "rgba(0,"+value+",0)";
+                        ctx.fillStyle = "rgba(0,"+value+",0,1)";
                 }
                 
                 ctx.fillRect(j
                 /*meterWidth+gap*/
                 , 600-i, 1, 1); //the meter
             }
+            ctx.fillStyle = "rgba(255,0,0,1)";
+            ctx.fillRect(j, 600-maxPosi, 1, 1);
             ++j;
             if(j>=1000)
                 j=0;
