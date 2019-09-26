@@ -3,7 +3,6 @@
 <head>
 <meta charset="utf-8">
 <title>哼唱识别</title>
-<link rel="stylesheet" type="text/css" href="css/style.css">
 </head>
 <body class="keBody">
 <div class="kePublic">
@@ -15,47 +14,52 @@
 <script>
 window.AudioContext = window.AudioContext || window.webkitAudioContext || window.mozAudioContext;
 
+class noteParser{
+    constructor(ser){
+        this.serious = ser;
+        this.merged= [];
+        console.log(this.serious);
+        this.toRelative();
+    }
+    merge(){
+        var last = null;
+        for (var i=0;i<this.serious.length;++i) {
+            
+        }
+    }
+} 
+
 var rec={
     "recMode":false,
     "last" : null,
+    "base" : 0,
     "noteList" : null,
-    "noteLen"  : 0,
-    "noteMinLen" : 2,
-    "addNote"  : function(){
-        if(this.last[0])
-            this.noteList.push([this.last[0],this.noteLen]);
-    },
-    "pushNote" : function(tone,vol) {
+    "log2"      :Math.log(2),
+    "pushNote" : function(fq,vol) {
         if(!this.recMode)
             return;
-        if(this.last!=null){
-            if(vol > (this.last[1]/2)){
-                try {
-                    if(this.last[0] && this.last[0][2]==tone[2]){
-                        ++this.noteLen;
-                    }else{
-                        this.addNote();
-                        this.noteLen=0;
-                        this.last = [tone,vol];
-                    }
-                }catch (e) {
-                    console.log(e);
-                }
-                
-            }
-        }else {
-            this.last = [tone,vol];
+        if(fq<=0)
+            return;
+        if(this.last == null){
+            base=fq;
+        }else{
+            if(vol<this.last[1]/2)
+                return;
+            this.noteList.push((Math.log(fq/base)/this.log2)*12);
         }
+        this.last=[fq,vol];
     },
     "start" : function(){
         if(this.recMode){
             this.recMode=false;
             this.addNote();
-            console.log(this.noteList);
+            var p = new noteParser(this.noteList);
             document.getElementById("rec-node").innerText="录制";
         }else{
             this.recMode=true;
             this.noteList = [];
+            this.last = null;
+            this.base = 0;
             document.getElementById("rec-node").innerText="停止";
         }
     }
@@ -64,7 +68,7 @@ var rec={
 var toneTable={
     "C4"        :null,
     "toneBuffer":new Array(600),
-    "log2"      :Math.log(2),
+    
     "toneMap"   :["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"],
     "init" : function (c) {
         this.C4=c || 48;
@@ -73,15 +77,16 @@ var toneTable={
     "getToneId" : function(v){
         return (Math.log(v/this.C4)/this.log2)*12+48;
     },
-    "getNameById" : function(id){
+    "getNameById" : function(oid){
+        var id=Math.round(oid);
         if(id<0)
             return null;
         var level = Math.floor(id/12);
         var tid   = id%12;
-        return [this.toneMap[tid],level,id];
+        return [this.toneMap[tid],level,id,oid];
     },
     "getToneName" : function(v){
-        return this.getNameById(Math.round(this.getToneId(v)));
+        return this.getNameById(this.getToneId(v));
     },
     "buildBuffer" : function(){
         for (var i=0;i<600;i++) {
@@ -196,15 +201,9 @@ window.onload = function() {
             if(j>=1000)
                 j=0;
             try{
-                var t = toneTable.toneBuffer[maxPosi];
-                if(!t)
-                    maxEle.innerText=maxPosi;
-                else
-                    maxEle.innerText=maxPosi + " " + "音符："+t[0]+" "+t[1] + " " + maxValue;
-                    //maxEle.innerText=maxPosi;
-                    rec.pushNote(t,maxValue);
+                rec.pushNote(maxPosi,maxValue);
             }catch (e) {
-                
+                console.log(e);
             }
             setTimeout(renderFrame,20);
         }
