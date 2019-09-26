@@ -263,7 +263,7 @@ window.onload = function() {
         renderFrame();
     },
     function(error) {
-        console.log("错误：", error);
+        document.getElementById("rel-value").innerText="调用麦克风失败";
     });
 
 };
